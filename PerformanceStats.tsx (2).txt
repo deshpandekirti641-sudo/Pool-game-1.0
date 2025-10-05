@@ -1,0 +1,90 @@
+'use client'
+
+import { useEffect, useRef } from 'react'
+import Stats from 'stats.js'
+
+interface PerformanceStatsProps {
+  ballCount: number
+}
+
+export function PerformanceStats({ ballCount }: PerformanceStatsProps): JSX.Element {
+  const statsRef = useRef<Stats>()
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    const fpsStats = new Stats()
+    fpsStats.showPanel(0)
+    fpsStats.dom.style.position = 'relative'
+    fpsStats.dom.style.marginBottom = '4px'
+
+    const msStats = new Stats()
+    msStats.showPanel(1)
+    msStats.dom.style.position = 'relative'
+    msStats.dom.style.marginBottom = '4px'
+
+    const memStats = new Stats()
+    memStats.showPanel(2)
+    memStats.dom.style.position = 'relative'
+
+    const panels = [fpsStats.dom, msStats.dom, memStats.dom]
+    panels.forEach(panel => {
+      panel.style.width = '80px'
+      panel.style.height = '48px'
+    })
+
+    containerRef.current.appendChild(fpsStats.dom)
+    containerRef.current.appendChild(msStats.dom)
+    containerRef.current.appendChild(memStats.dom)
+
+    function animate() {
+      fpsStats.begin()
+      msStats.begin()
+      memStats.begin()
+
+      fpsStats.end()
+      msStats.end()
+      memStats.end()
+
+      requestAnimationFrame(animate)
+    }
+
+    animate()
+
+    statsRef.current = fpsStats
+
+    return () => {
+      if (containerRef.current) {
+        containerRef.current.innerHTML = ''
+      }
+    }
+  }, [])
+
+  return (
+    <div className="fixed top-4 right-64 bg-black bg-opacity-80 rounded-lg p-2 z-50 border border-gray-600">
+      <div className="text-white text-xs font-bold mb-1 text-center">Stats</div>
+      
+      <div ref={containerRef} className="flex flex-col" />
+      
+      <div className="text-white text-xs mt-2 space-y-1">
+        <div className="flex justify-between">
+          <span>Balls:</span>
+          <span className="font-mono">{ballCount}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Physics:</span>
+          <span className="font-mono text-green-400">Active</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Render:</span>
+          <span className="font-mono text-green-400">WebGL</span>
+        </div>
+      </div>
+      
+      <div className="text-gray-400 text-xs mt-2">
+        <div>FPS • MS • MB</div>
+      </div>
+    </div>
+  )
+}

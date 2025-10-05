@@ -1,0 +1,417 @@
+'use client'
+
+import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertCircle, Check, Phone, Mail, Timer, Loader2 } from 'lucide-react';
+import { TournamentManager, OTPManager, User } from '@/lib/tournament';
+
+interface AuthModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onAuthenticated: (user: User) => void;
+}
+
+interface FormData {
+  phone: string;
+  email: string;
+  username: string;
+  otp: string;
+}
+
+interface FormErrors {
+  phone?: string;
+  email?: string;
+  username?: string;
+  otp?: string;
+  general?: string;
+}
+
+export function AuthModal({ isOpen, onClose, onAuthenticated }: AuthModalProps): JSX.Element {
+  const [activeTab, setActiveTab] = useState<'phone' | 'email'>('phone');
+  const [step, setStep] = useState<'register' | 'verify' | 'complete'>('register');
+  const [formData, setFormData] = useState<FormData>({
+    phone: '',
+    email: '',
+    username: '',
+    otp: ''
+  });
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [otpTimer, setOtpTimer] = useState<number>(0);
+  const [generatedOTP, setGeneratedOTP] = useState<string>('');
+
+  const tournamentManager = TournamentManager.getInstance();
+
+  // Validation functions
+  const validatePhone = (phone: string): string | undefined => {
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phone) return 'Phone number is required';
+    if (!phoneRegex.test(phone)) return 'Enter a valid 10-digit Indian mobile number';
+    return undefined;
+  };
+
+  const validateEmail = (email: string): string | undefined => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) return 'Email is required';
+    if (!emailRegex.test(email)) return 'Enter a valid email address';
+    return undefined;
+  };
+
+  const validateUsername = (username: string): string | undefined => {
+    if (!username) return 'Username is required';
+    if (username.length < 3) return 'Username must be at least 3 characters';
+    if (username.length > 20) return 'Username must be less than 20 characters';
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) return 'Username can only contain letters, numbers, and underscores';
+    return undefined;
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    if (activeTab === 'phone') {
+      const phoneError = validatePhone(formData.phone);
+      if (phoneError) newErrors.phone = phoneError;
+    } else {
+      const emailError = validateEmail(formData.email);
+      if (emailError) newErrors.email = emailError;
+    }
+
+    const usernameError = validateUsername(formData.username);
+    if (usernameError) newErrors.username = usernameError;
+
+    // Check if user already exists
+    const contact = activeTab === 'phone' ? formData.phone : formData.email;
+    const existingUser = tournamentManager.getUserByContact(contact);
+    if (existingUser) {
+      newErrors.general = 'User already exists with this ' + activeTab;
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSendOTP = async (): Promise<void> => {
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    
+    try {
+      const contact = activeTab === 'phone' ? formData.phone : formData.email;
+      const otp = OTPManager.generateOTP(contact);
+      setGeneratedOTP(otp);
+      
+      // Start timer
+      setOtpTimer(300); // 5 minutes
+      const timerInterval = setInterval(() => {
+        setOtpTimer(prev => {
+          if (prev <= 1) {
+            clearInterval(timerInterval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Simulate sending OTP (in real app, this would call SMS/email API)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      setStep('verify');
+      
+      // Show OTP in console for development
+      console.log(`🔐 OTP sent to ${contact}: ${otp}`);
+      
+    } catch (error) {
+      setErrors({ general: 'Failed to send OTP. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (): Promise<void> => {
+    if (!formData.otp) {
+      setErrors({ otp: 'Please enter the OTP' });
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const contact = activeTab === 'phone' ? formData.phone : formData.email;
+      const isValid = OTPManager.verifyOTP(contact, formData.otp);
+      
+      if (!isValid) {
+        setErrors({ otp: 'Invalid or expired OTP' });
+        return;
+      }
+
+      // Create user account
+      const userData = {
+        [activeTab]: contact,
+        username: formData.username
+      };
+      
+      const newUser = tournamentManager.createUser(userData);
+      
+      // Mark as verified
+      const user = { ...newUser, isVerified: true };
+      
+      setStep('complete');
+      
+      setTimeout(() => {
+        onAuthenticated(user);
+        onClose();
+        resetForm();
+      }, 2000);
+      
+    } catch (error) {
+      setErrors({ general: 'Verification failed. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOTP = (): void => {
+    setFormData(prev => ({ ...prev, otp: '' }));
+    setErrors({});
+    handleSendOTP();
+  };
+
+  const resetForm = (): void => {
+    setFormData({ phone: '', email: '', username: '', otp: '' });
+    setErrors({});
+    setStep('register');
+    setOtpTimer(0);
+    setGeneratedOTP('');
+  };
+
+  const handleInputChange = (field: keyof FormData, value: string): void => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error for this field
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  const formatTimer = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="text-center text-2xl font-bold text-green-600">
+            Welcome to Pool Tournament
+          </DialogTitle>
+        </DialogHeader>
+
+        {step === 'register' && (
+          <div className="space-y-6">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'phone' | 'email')}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="phone" className="flex items-center gap-2">
+                  <Phone size={16} />
+                  Phone
+                </TabsTrigger>
+                <TabsTrigger value="email" className="flex items-center gap-2">
+                  <Mail size={16} />
+                  Email
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="phone" className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Mobile Number</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="Enter 10-digit mobile number"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    className={errors.phone ? 'border-red-500' : ''}
+                  />
+                  {errors.phone && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle size={14} />
+                      {errors.phone}
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="email" className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter your email address"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    className={errors.email ? 'border-red-500' : ''}
+                  />
+                  {errors.email && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle size={14} />
+                      {errors.email}
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="Choose a unique username"
+                value={formData.username}
+                onChange={(e) => handleInputChange('username', e.target.value)}
+                className={errors.username ? 'border-red-500' : ''}
+              />
+              {errors.username && (
+                <p className="text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={14} />
+                  {errors.username}
+                </p>
+              )}
+            </div>
+
+            {errors.general && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle size={14} />
+                  {errors.general}
+                </p>
+              </div>
+            )}
+
+            <Button 
+              onClick={handleSendOTP} 
+              className="w-full bg-green-600 hover:bg-green-700"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending OTP...
+                </>
+              ) : (
+                'Send OTP'
+              )}
+            </Button>
+          </div>
+        )}
+
+        {step === 'verify' && (
+          <div className="space-y-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Timer className="w-8 h-8 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">Verify OTP</h3>
+              <p className="text-sm text-gray-600">
+                We sent a 6-digit code to {activeTab === 'phone' ? formData.phone : formData.email}
+              </p>
+            </div>
+
+            {/* Development OTP Display */}
+            {generatedOTP && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-sm text-yellow-800">
+                  <strong>Development Mode:</strong> Your OTP is <strong>{generatedOTP}</strong>
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="otp">Enter OTP</Label>
+              <Input
+                id="otp"
+                type="text"
+                placeholder="Enter 6-digit OTP"
+                value={formData.otp}
+                onChange={(e) => handleInputChange('otp', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className={`text-center text-2xl tracking-widest ${errors.otp ? 'border-red-500' : ''}`}
+                maxLength={6}
+              />
+              {errors.otp && (
+                <p className="text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={14} />
+                  {errors.otp}
+                </p>
+              )}
+            </div>
+
+            {otpTimer > 0 && (
+              <div className="text-center">
+                <p className="text-sm text-gray-500">
+                  Resend OTP in <span className="font-mono text-blue-600">{formatTimer(otpTimer)}</span>
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={handleResendOTP}
+                disabled={otpTimer > 0 || isLoading}
+                className="flex-1"
+              >
+                Resend OTP
+              </Button>
+              <Button
+                onClick={handleVerifyOTP}
+                disabled={isLoading || formData.otp.length !== 6}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  'Verify'
+                )}
+              </Button>
+            </div>
+
+            {errors.general && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle size={14} />
+                  {errors.general}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 'complete' && (
+          <div className="text-center space-y-6 py-8">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+              <Check className="w-8 h-8 text-green-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-green-600 mb-2">Welcome to the Tournament!</h3>
+              <p className="text-sm text-gray-600">
+                Your account has been created successfully.
+              </p>
+              <p className="text-sm text-green-600 mt-2 font-semibold">
+                🎉 You received ₹100 as a welcome bonus!
+              </p>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

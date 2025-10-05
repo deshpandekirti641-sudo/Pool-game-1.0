@@ -1,0 +1,89 @@
+'use client'
+
+import type { PoolGameLogic } from './usePoolGame'
+
+interface GameUIProps {
+  gameLogic: PoolGameLogic
+}
+
+export function GameUI({ gameLogic }: GameUIProps): JSX.Element {
+  const pocketedSolids = gameLogic.balls.filter(ball => 
+    ball.isPocketed && ball.isSolid && ball.id !== 8
+  ).length
+  
+  const pocketedStripes = gameLogic.balls.filter(ball => 
+    ball.isPocketed && ball.isStripe
+  ).length
+
+  return (
+    <div className="fixed top-6 right-6 z-40 space-y-3 w-48">
+      {/* Game Status */}
+      <div className="bg-black bg-opacity-90 text-white rounded-lg p-3 border border-gray-600">
+        <h2 className="text-lg font-bold mb-2 text-center">8-Ball Pool</h2>
+        <div className="space-y-1 text-xs">
+          <div>Game Phase: <span className="text-blue-300 capitalize">{gameLogic.gamePhase.replace('_', ' ')}</span></div>
+          <div>Current Player: <span className="text-green-400 font-bold">Player {gameLogic.currentPlayer}</span></div>
+          <div>Turn Status: <span className={gameLogic.isPlayerTurn ? 'text-green-400' : 'text-red-400'}>
+            {gameLogic.isPlayerTurn ? 'Your Turn' : 'Waiting...'}
+          </span></div>
+        </div>
+      </div>
+
+      {/* Score Display */}
+      <div className="bg-black bg-opacity-90 text-white rounded-lg p-3 border border-gray-600">
+        <h3 className="font-bold mb-2 text-center text-sm">Score</h3>
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <span className={gameLogic.currentPlayer === 1 ? 'text-green-400 font-bold' : ''}>
+              Player 1:
+            </span>
+            <span className="text-blue-300">{gameLogic.score.player1}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className={gameLogic.currentPlayer === 2 ? 'text-green-400 font-bold' : ''}>
+              Player 2:
+            </span>
+            <span className="text-blue-300">{gameLogic.score.player2}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Ball Status */}
+      <div className="bg-black bg-opacity-90 text-white rounded-lg p-3 border border-gray-600">
+        <h3 className="font-bold mb-2 text-center text-sm">Balls Remaining</h3>
+        <div className="space-y-2 text-xs">
+          <div className="flex justify-between">
+            <span>Solids (1-7):</span>
+            <span className="text-yellow-400">{7 - pocketedSolids}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Stripes (9-15):</span>
+            <span className="text-orange-400">{7 - pocketedStripes}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>8-Ball:</span>
+            <span className="text-black bg-white px-2 rounded">
+              {gameLogic.balls.find(ball => ball.id === 8)?.isPocketed ? '0' : '1'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Game Over */}
+      {gameLogic.gamePhase === 'game_over' && (
+        <div className="bg-red-900 bg-opacity-90 text-white rounded-lg p-4 border border-red-600">
+          <h2 className="text-xl font-bold mb-2 text-center">Game Over!</h2>
+          <div className="text-center mb-3">
+            <span className="text-yellow-400 text-lg">Winner: Player {gameLogic.currentPlayer}</span>
+          </div>
+          <button
+            onClick={gameLogic.resetGame}
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors"
+          >
+            New Game
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}

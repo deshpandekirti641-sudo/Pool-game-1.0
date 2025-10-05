@@ -1,0 +1,42 @@
+'use client'
+import { useEffect } from 'react'
+
+import { TournamentApp } from '../components/TournamentApp'
+import { sdk } from "@farcaster/miniapp-sdk";
+
+export default function HomePage(): JSX.Element {
+    useEffect(() => {
+      const initializeFarcaster = async () => {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          if (document.readyState !== 'complete') {
+            await new Promise(resolve => {
+              if (document.readyState === 'complete') {
+                resolve(void 0);
+              } else {
+                window.addEventListener('load', () => resolve(void 0), { once: true });
+              }
+
+            });
+          }
+
+          await sdk.actions.ready();
+          console.log("Farcaster SDK initialized successfully - app fully loaded");
+        } catch (error) {
+          console.error('Failed to initialize Farcaster SDK:', error);
+          setTimeout(async () => {
+            try {
+              await sdk.actions.ready();
+              console.log('Farcaster SDK initialized on retry');
+            } catch (retryError) {
+              console.error('Farcaster SDK retry failed:', retryError);
+            }
+
+          }, 1000);
+        }
+
+      };
+      initializeFarcaster();
+    }, []);
+  return <TournamentApp />
+}

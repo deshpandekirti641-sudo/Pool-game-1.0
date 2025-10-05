@@ -1,0 +1,216 @@
+'use client'
+
+import { useState, useCallback } from 'react'
+import { Vector3 } from 'three'
+
+export interface PoolBall {
+  id: number
+  position: Vector3
+  velocity: Vector3
+  color: string
+  number: number | null
+  isPocketed: boolean
+  isSolid: boolean
+  isStripe: boolean
+}
+
+export interface PoolGameLogic {
+  balls: PoolBall[]
+  cueBallPosition: Vector3
+  isPlayerTurn: boolean
+  currentPlayer: 1 | 2
+  gamePhase: 'break' | 'open' | 'player1_solids' | 'player1_stripes' | 'player2_solids' | 'player2_stripes' | 'game_over'
+  score: { player1: number; player2: number }
+  shootCueBall: (direction: Vector3, power: number) => void
+  pocketBall: (ballIndex: number) => void
+  resetGame: () => void
+}
+
+const BALL_COLORS = [
+  '#FFFFFF', // 0 - Cue ball
+  '#FFFF00', // 1 - Yellow
+  '#0000FF', // 2 - Blue  
+  '#FF0000', // 3 - Red
+  '#800080', // 4 - Purple
+  '#FFA500', // 5 - Orange
+  '#00FF00', // 6 - Green
+  '#8B0000', // 7 - Maroon
+  '#000000', // 8 - Black (8-ball)
+  '#FFFF00', // 9 - Yellow stripe
+  '#0000FF', // 10 - Blue stripe
+  '#FF0000', // 11 - Red stripe
+  '#800080', // 12 - Purple stripe
+  '#FFA500', // 13 - Orange stripe
+  '#00FF00', // 14 - Green stripe
+  '#8B0000', // 15 - Maroon stripe
+]
+
+function createInitialBalls(): PoolBall[] {
+  const balls: PoolBall[] = []
+  
+  // Cue ball
+  balls.push({
+    id: 0,
+    position: new Vector3(-10, 0.5, 0),
+    velocity: new Vector3(0, 0, 0),
+    color: BALL_COLORS[0],
+    number: null,
+    isPocketed: false,
+    isSolid: false,
+    isStripe: false,
+  })
+  
+  // Rack formation (triangle)
+  const rackCenter = new Vector3(8, 0.5, 0)
+  const ballSpacing = 1.1
+  
+  // 8-ball at center
+  balls.push({
+    id: 8,
+    position: new Vector3(rackCenter.x, rackCenter.y, rackCenter.z),
+    velocity: new Vector3(0, 0, 0),
+    color: BALL_COLORS[8],
+    number: 8,
+    isPocketed: false,
+    isSolid: false,
+    isStripe: false,
+  })
+  
+  // Other balls in rack formation
+  const positions = [
+    // Front row
+    new Vector3(rackCenter.x + ballSpacing, rackCenter.y, rackCenter.z - ballSpacing/2),
+    new Vector3(rackCenter.x + ballSpacing, rackCenter.y, rackCenter.z + ballSpacing/2),
+    // Second row
+    new Vector3(rackCenter.x + ballSpacing * 2, rackCenter.y, rackCenter.z - ballSpacing),
+    new Vector3(rackCenter.x + ballSpacing * 2, rackCenter.y, rackCenter.z + ballSpacing),
+    // Third row
+    new Vector3(rackCenter.x + ballSpacing * 3, rackCenter.y, rackCenter.z - ballSpacing * 1.5),
+    new Vector3(rackCenter.x + ballSpacing * 3, rackCenter.y, rackCenter.z - ballSpacing/2),
+    new Vector3(rackCenter.x + ballSpacing * 3, rackCenter.y, rackCenter.z + ballSpacing/2),
+    new Vector3(rackCenter.x + ballSpacing * 3, rackCenter.y, rackCenter.z + ballSpacing * 1.5),
+    // Fourth row
+    new Vector3(rackCenter.x + ballSpacing * 4, rackCenter.y, rackCenter.z - ballSpacing * 2),
+    new Vector3(rackCenter.x + ballSpacing * 4, rackCenter.y, rackCenter.z - ballSpacing),
+    new Vector3(rackCenter.x + ballSpacing * 4, rackCenter.y, rackCenter.z),
+    new Vector3(rackCenter.x + ballSpacing * 4, rackCenter.y, rackCenter.z + ballSpacing),
+    new Vector3(rackCenter.x + ballSpacing * 4, rackCenter.y, rackCenter.z + ballSpacing * 2),
+    // Fifth row (back)
+    new Vector3(rackCenter.x + ballSpacing * 5, rackCenter.y, rackCenter.z - ballSpacing * 2.5),
+    new Vector3(rackCenter.x + ballSpacing * 5, rackCenter.y, rackCenter.z + ballSpacing * 2.5),
+  ]
+  
+  const ballNumbers = [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15]
+  
+  positions.forEach((pos, index) => {
+    if (index < ballNumbers.length) {
+      const ballNum = ballNumbers[index]
+      balls.push({
+        id: ballNum,
+        position: pos.clone(),
+        velocity: new Vector3(0, 0, 0),
+        color: BALL_COLORS[ballNum],
+        number: ballNum,
+        isPocketed: false,
+        isSolid: ballNum <= 7,
+        isStripe: ballNum >= 9,
+      })
+    }
+  })
+  
+  return balls
+}
+
+export function usePoolGame(matchId?: string, audioManager?: any): PoolGameLogic {
+  const [balls, setBalls] = useState<PoolBall[]>(createInitialBalls())
+  const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1)
+  const [gamePhase, setGamePhase] = useState<PoolGameLogic['gamePhase']>('break')
+  const [score, setScore] = useState({ player1: 0, player2: 0 })
+  const [isPlayerTurn, setIsPlayerTurn] = useState(true)
+
+  const cueBall = balls.find(ball => ball.id === 0)
+  const cueBallPosition = cueBall ? cueBall.position : new Vector3(0, 0.5, 0)
+
+  const shootCueBall = useCallback((direction: Vector3, power: number) => {
+    if (!isPlayerTurn) return
+    
+    // Play cue shot sound
+    if (audioManager) {
+      audioManager.playCueShot(power)
+    }
+    
+    setBalls(prevBalls => {
+      const newBalls = [...prevBalls]
+      const cueBall = newBalls.find(ball => ball.id === 0)
+      if (cueBall) {
+        cueBall.velocity = direction.clone().multiplyScalar(power * 0.5)
+      }
+      return newBalls
+    })
+    
+    setIsPlayerTurn(false)
+    
+    // Switch turns after a delay
+    setTimeout(() => {
+      setIsPlayerTurn(true)
+      setCurrentPlayer(prev => prev === 1 ? 2 : 1)
+    }, 3000)
+  }, [isPlayerTurn, audioManager])
+
+  const pocketBall = useCallback((ballIndex: number) => {
+    setBalls(prevBalls => {
+      const newBalls = [...prevBalls]
+      const ball = newBalls[ballIndex]
+      if (ball) {
+        ball.isPocketed = true
+        ball.position.y = -10 // Move below table
+        
+        // Play ball pocket sound
+        if (audioManager) {
+          audioManager.playBallPocket()
+        }
+        
+        // Update score
+        if (ball.id === 8) {
+          setGamePhase('game_over')
+          // Play game over sound based on winner
+          if (audioManager) {
+            const totalBallsPocketed = score[`player${currentPlayer}` as keyof typeof score]
+            const isWinner = totalBallsPocketed > 0
+            if (isWinner) {
+              audioManager.playMatchWin()
+            } else {
+              audioManager.playMatchLose()
+            }
+          }
+        } else if (ball.id !== 0) {
+          setScore(prev => ({
+            ...prev,
+            [`player${currentPlayer}` as keyof typeof prev]: prev[`player${currentPlayer}` as keyof typeof prev] + 1
+          }))
+        }
+      }
+      return newBalls
+    })
+  }, [currentPlayer, audioManager, score])
+
+  const resetGame = useCallback(() => {
+    setBalls(createInitialBalls())
+    setCurrentPlayer(1)
+    setGamePhase('break')
+    setScore({ player1: 0, player2: 0 })
+    setIsPlayerTurn(true)
+  }, [])
+
+  return {
+    balls,
+    cueBallPosition,
+    isPlayerTurn,
+    currentPlayer,
+    gamePhase,
+    score,
+    shootCueBall,
+    pocketBall,
+    resetGame,
+  }
+}

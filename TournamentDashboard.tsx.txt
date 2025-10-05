@@ -1,0 +1,523 @@
+'use client'
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import { 
+  Trophy, 
+  Users, 
+  Clock, 
+  Wallet, 
+  GameController2, 
+  TrendingUp, 
+  Plus,
+  Eye,
+  Timer,
+  Target,
+  DollarSign,
+  Medal,
+  Activity,
+  History
+} from 'lucide-react';
+import { TournamentManager, User, Match, Transaction } from '@/lib/tournament';
+
+interface TournamentDashboardProps {
+  user: User;
+  onPlayMatch: (matchId?: string) => void;
+  onShowWalletHistory: () => void;
+}
+
+interface MatchCardProps {
+  match: Match;
+  currentUserId: string;
+  onJoin: (matchId: string) => void;
+  onSpectate: (matchId: string) => void;
+}
+
+interface StatsCardProps {
+  icon: React.ReactNode;
+  title: string;
+  value: string | number;
+  change?: string;
+  trend?: 'up' | 'down' | 'neutral';
+}
+
+function StatsCard({ icon, title, value, change, trend }: StatsCardProps): JSX.Element {
+  return (
+    <Card className="hover:shadow-lg transition-shadow">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-600">{title}</p>
+            <p className="text-2xl font-bold">{value}</p>
+            {change && (
+              <p className={`text-xs flex items-center gap-1 mt-1 ${
+                trend === 'up' ? 'text-green-600' : trend === 'down' ? 'text-red-600' : 'text-gray-600'
+              }`}>
+                <TrendingUp size={12} className={trend === 'down' ? 'rotate-180' : ''} />
+                {change}
+              </p>
+            )}
+          </div>
+          <div className="text-blue-600">{icon}</div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MatchCard({ match, currentUserId, onJoin, onSpectate }: MatchCardProps): JSX.Element {
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+  
+  useEffect(() => {
+    if (match.status === 'active' && match.startTime) {
+      const updateTimer = () => {
+        const elapsed = (Date.now() - match.startTime!.getTime()) / 1000;
+        const remaining = Math.max(0, match.duration - elapsed);
+        setTimeLeft(remaining);
+      };
+      
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [match.status, match.startTime, match.duration]);
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getStatusColor = (status: Match['status']): string => {
+    switch (status) {
+      case 'waiting': return 'bg-yellow-100 text-yellow-800';
+      case 'active': return 'bg-green-100 text-green-800';
+      case 'completed': return 'bg-blue-100 text-blue-800';
+      case 'timeout': return 'bg-gray-100 text-gray-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const canJoin = match.status === 'waiting' && match.player1Id !== currentUserId;
+  const isPlayerInMatch = match.player1Id === currentUserId || match.player2Id === currentUserId;
+
+  return (
+    <Card className="hover:shadow-lg transition-shadow">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">
+            {match.status === 'waiting' ? 'Open Match' : 'Live Match'}
+          </CardTitle>
+          <Badge className={getStatusColor(match.status)}>
+            {match.status.charAt(0).toUpperCase() + match.status.slice(1)}
+          </Badge>
+        </div>
+        <CardDescription>
+          Entry Fee: ₹{match.entryFee} • Prize Pool: ₹{match.prizePool}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-2">
+              <GameController2 className="w-6 h-6 text-blue-600" />
+            </div>
+            <p className="text-sm font-medium">{match.player1Username}</p>
+            <p className="text-xs text-gray-500">Player 1</p>
+          </div>
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-2">
+              {match.player2Id ? (
+                <GameController2 className="w-6 h-6 text-orange-600" />
+              ) : (
+                <Plus className="w-6 h-6 text-gray-400" />
+              )}
+            </div>
+            <p className="text-sm font-medium">
+              {match.player2Username || 'Waiting...'}
+            </p>
+            <p className="text-xs text-gray-500">Player 2</p>
+          </div>
+        </div>
+
+        {match.status === 'active' && (
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Time Remaining</span>
+              <span className="text-sm font-mono font-bold text-red-600">
+                {formatTime(timeLeft)}
+              </span>
+            </div>
+            <Progress 
+              value={(timeLeft / match.duration) * 100} 
+              className="h-2"
+            />
+            <div className="grid grid-cols-2 gap-4 text-center">
+              <div>
+                <p className="text-lg font-bold text-blue-600">
+                  {match.gameState.player1Score}
+                </p>
+                <p className="text-xs text-gray-500">Score</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold text-orange-600">
+                  {match.gameState.player2Score}
+                </p>
+                <p className="text-xs text-gray-500">Score</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {match.status === 'completed' && match.winnerId && (
+          <div className="text-center p-3 bg-yellow-50 rounded-lg">
+            <Trophy className="w-6 h-6 text-yellow-600 mx-auto mb-1" />
+            <p className="text-sm font-semibold text-yellow-800">
+              Winner: {match.winnerUsername}
+            </p>
+            <p className="text-xs text-yellow-600">
+              Prize: ₹{match.winnerPayout}
+            </p>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          {canJoin && (
+            <Button 
+              onClick={() => onJoin(match.id)}
+              className="flex-1 bg-green-600 hover:bg-green-700"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Join Match
+            </Button>
+          )}
+          {match.status === 'active' && (
+            <Button 
+              variant="outline" 
+              onClick={() => onSpectate(match.id)}
+              className="flex-1"
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              Spectate
+            </Button>
+          )}
+          {isPlayerInMatch && match.status === 'active' && (
+            <Button 
+              onClick={() => onSpectate(match.id)}
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
+            >
+              <GameController2 className="w-4 h-4 mr-2" />
+              Play Now
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function TournamentDashboard({ user, onPlayMatch, onShowWalletHistory }: TournamentDashboardProps): JSX.Element {
+  const [activeMatches, setActiveMatches] = useState<Match[]>([]);
+  const [waitingMatches, setWaitingMatches] = useState<Match[]>([]);
+  const [completedMatches, setCompletedMatches] = useState<Match[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [isCreatingMatch, setIsCreatingMatch] = useState<boolean>(false);
+
+  const tournamentManager = TournamentManager.getInstance();
+
+  useEffect(() => {
+    const updateData = () => {
+      setActiveMatches(tournamentManager.getActiveMatches());
+      setWaitingMatches(tournamentManager.getWaitingMatches());
+      setCompletedMatches(tournamentManager.getAllMatches().filter(m => m.status === 'completed').slice(0, 5));
+      setRecentTransactions(tournamentManager.getUserTransactions(user.id).slice(0, 5));
+    };
+
+    updateData();
+    const interval = setInterval(updateData, 2000);
+    return () => clearInterval(interval);
+  }, [user.id]);
+
+  const handleCreateMatch = async () => {
+    if (user.walletBalance < 10) {
+      alert('Insufficient balance! You need ₹10 to create a match.');
+      return;
+    }
+
+    setIsCreatingMatch(true);
+    try {
+      const match = tournamentManager.createMatch(user.id);
+      setTimeout(() => {
+        setIsCreatingMatch(false);
+      }, 1000);
+    } catch (error) {
+      alert('Failed to create match. Please try again.');
+      setIsCreatingMatch(false);
+    }
+  };
+
+  const handleJoinMatch = (matchId: string) => {
+    if (user.walletBalance < 10) {
+      alert('Insufficient balance! You need ₹10 to join a match.');
+      return;
+    }
+
+    const success = tournamentManager.joinMatch(matchId, user.id);
+    if (success) {
+      // Match joined successfully, redirect to game
+      onPlayMatch(matchId);
+    } else {
+      alert('Failed to join match. Please try again.');
+    }
+  };
+
+  const handleSpectateMatch = (matchId: string) => {
+    onPlayMatch(matchId);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Pool Tournament</h1>
+            <p className="text-gray-600">Welcome back, {user.username}!</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <Card className="px-4 py-2">
+              <div className="flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Wallet Balance</p>
+                  <p className="text-lg font-bold text-green-600">₹{user.walletBalance}</p>
+                </div>
+              </div>
+            </Card>
+            <Button onClick={onShowWalletHistory} variant="outline">
+              <History className="w-4 h-4 mr-2" />
+              Transactions
+            </Button>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatsCard
+            icon={<GameController2 size={24} />}
+            title="Games Played"
+            value={user.gamesPlayed}
+            change="+2 this week"
+            trend="up"
+          />
+          <StatsCard
+            icon={<Trophy size={24} />}
+            title="Games Won"
+            value={user.gamesWon}
+            change={`${user.winRate.toFixed(1)}% win rate`}
+            trend="up"
+          />
+          <StatsCard
+            icon={<DollarSign size={24} />}
+            title="Total Earnings"
+            value={`₹${user.totalEarnings}`}
+            change="+₹50 this month"
+            trend="up"
+          />
+          <StatsCard
+            icon={<Medal size={24} />}
+            title="Rank"
+            value="#12"
+            change="+3 positions"
+            trend="up"
+          />
+        </div>
+
+        <Tabs defaultValue="matches" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="matches">Live Matches</TabsTrigger>
+            <TabsTrigger value="lobby">Join Game</TabsTrigger>
+            <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
+            <TabsTrigger value="history">Match History</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="matches" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-semibold">Active Matches</h2>
+              <Button onClick={handleCreateMatch} disabled={isCreatingMatch} className="bg-green-600 hover:bg-green-700">
+                <Plus className="w-4 h-4 mr-2" />
+                {isCreatingMatch ? 'Creating...' : 'Create Match'}
+              </Button>
+            </div>
+
+            {activeMatches.length === 0 ? (
+              <Card className="p-8 text-center">
+                <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-lg text-gray-600">No active matches</p>
+                <p className="text-sm text-gray-500">Create a match to start playing!</p>
+              </Card>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2">
+                {activeMatches.map((match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    currentUserId={user.id}
+                    onJoin={handleJoinMatch}
+                    onSpectate={handleSpectateMatch}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="lobby" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-semibold">Available Matches</h2>
+              <Badge variant="secondary" className="flex items-center gap-2">
+                <Users size={16} />
+                {waitingMatches.length} matches waiting
+              </Badge>
+            </div>
+
+            {waitingMatches.length === 0 ? (
+              <Card className="p-8 text-center">
+                <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-lg text-gray-600">No matches available</p>
+                <p className="text-sm text-gray-500 mb-4">Be the first to create a match!</p>
+                <Button onClick={handleCreateMatch} disabled={isCreatingMatch} className="bg-green-600 hover:bg-green-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Match
+                </Button>
+              </Card>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {waitingMatches.map((match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    currentUserId={user.id}
+                    onJoin={handleJoinMatch}
+                    onSpectate={handleSpectateMatch}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="leaderboard" className="space-y-6">
+            <h2 className="text-2xl font-semibold">Top Players</h2>
+            <Card>
+              <CardHeader>
+                <CardTitle>This Week's Champions</CardTitle>
+                <CardDescription>Top performers based on wins and earnings</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {[
+                    { rank: 1, name: user.username, wins: user.gamesWon, earnings: user.totalEarnings, isCurrentUser: true },
+                    { rank: 2, name: "PoolMaster", wins: 15, earnings: 450, isCurrentUser: false },
+                    { rank: 3, name: "8BallKing", wins: 12, earnings: 380, isCurrentUser: false },
+                    { rank: 4, name: "CueMaster", wins: 10, earnings: 320, isCurrentUser: false },
+                    { rank: 5, name: "PoolShark", wins: 8, earnings: 250, isCurrentUser: false },
+                  ].map((player) => (
+                    <div key={player.rank} className={`flex items-center justify-between p-3 rounded-lg ${
+                      player.isCurrentUser ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                          player.rank === 1 ? 'bg-yellow-100 text-yellow-800' :
+                          player.rank === 2 ? 'bg-gray-100 text-gray-800' :
+                          player.rank === 3 ? 'bg-orange-100 text-orange-800' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          #{player.rank}
+                        </div>
+                        <div>
+                          <p className="font-semibold">
+                            {player.name}
+                            {player.isCurrentUser && <span className="text-blue-600 text-sm ml-1">(You)</span>}
+                          </p>
+                          <p className="text-sm text-gray-600">{player.wins} wins</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-green-600">₹{player.earnings}</p>
+                        <p className="text-xs text-gray-500">earnings</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="history" className="space-y-6">
+            <h2 className="text-2xl font-semibold">Recent Activity</h2>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Matches</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {completedMatches.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">No completed matches yet</p>
+                  ) : (
+                    completedMatches.map((match) => (
+                      <div key={match.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="font-semibold">
+                            {match.player1Username} vs {match.player2Username}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Winner: {match.winnerUsername || 'Draw'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold">₹{match.prizePool}</p>
+                          <p className="text-xs text-gray-500">prize pool</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Transactions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {recentTransactions.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">No transactions yet</p>
+                  ) : (
+                    recentTransactions.map((transaction) => (
+                      <div key={transaction.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="font-semibold text-sm">{transaction.description}</p>
+                          <p className="text-xs text-gray-600">
+                            {new Date(transaction.timestamp).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className={`font-semibold ${
+                          transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {transaction.amount > 0 ? '+' : ''}₹{transaction.amount}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}

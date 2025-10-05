@@ -1,0 +1,103 @@
+'use client'
+
+import { useRef, useState } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { Mesh, Vector3 } from 'three'
+
+interface CueStickProps {
+  cueBallPosition: Vector3
+  isPlayerTurn: boolean
+  onShoot: (direction: Vector3, power: number) => void
+}
+
+export function CueStick({ cueBallPosition, isPlayerTurn, onShoot }: CueStickProps): JSX.Element {
+  const cueRef = useRef<Mesh>(null)
+  const [aimDirection, setAimDirection] = useState(new Vector3(1, 0, 0))
+  const [power, setPower] = useState(0)
+  const [isAiming, setIsAiming] = useState(false)
+  const [isCharging, setIsCharging] = useState(false)
+
+  const CUE_LENGTH = 12
+  const CUE_DISTANCE = 2.5
+
+  useFrame((state) => {
+    if (!cueRef.current || !isPlayerTurn) return
+
+    // Auto-aim at mouse position (for desktop)
+    if (state.pointer && !isCharging) {
+      const mouse = state.pointer
+      const aimTarget = new Vector3(mouse.x * 10, 0, mouse.y * 10)
+      const direction = aimTarget.sub(cueBallPosition).normalize()
+      setAimDirection(direction)
+    }
+
+    // Position cue stick behind cue ball
+    const cuePosition = cueBallPosition.clone().add(
+      aimDirection.clone().multiplyScalar(-(CUE_DISTANCE + power * 2))
+    )
+    cuePosition.y = 1
+
+    cueRef.current.position.copy(cuePosition)
+    cueRef.current.lookAt(cueBallPosition)
+  })
+
+  const handleShoot = () => {
+    if (!isPlayerTurn || power === 0) return
+    
+    onShoot(aimDirection.clone(), power)
+    setPower(0)
+    setIsCharging(false)
+  }
+
+  const handlePowerChange = (newPower: number) => {
+    setPower(Math.max(0, Math.min(10, newPower)))
+  }
+
+  return (
+    <>
+      {isPlayerTurn && (
+        <mesh 
+          ref={cueRef} 
+          castShadow
+          onClick={handleShoot}
+        >
+          <cylinderGeometry args={[0.05, 0.08, CUE_LENGTH, 16]} />
+          <meshLambertMaterial color="#8B4513" />
+        </mesh>
+      )}
+      
+      {/* Power indicator line */}
+      {isPlayerTurn && power > 0 && (
+        <LineHelper 
+          start={cueBallPosition}
+          end={cueBallPosition.clone().add(aimDirection.clone().multiplyScalar(power * 2))}
+          color="#FF0000"
+        />
+      )}
+    </>
+  )
+}
+
+interface LineHelperProps {
+  start: Vector3
+  end: Vector3
+  color: string
+}
+
+function LineHelper({ start, end, color }: LineHelperProps): JSX.Element {
+  const points = [start, end]
+  
+  return (
+    <line>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={points.length}
+          array={new Float32Array(points.flatMap(p => [p.x, p.y + 0.1, p.z]))}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <lineBasicMaterial color={color} />
+    </line>
+  )
+}

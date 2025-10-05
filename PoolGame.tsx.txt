@@ -1,0 +1,95 @@
+'use client'
+
+import { Canvas } from '@react-three/fiber'
+import { OrbitControls, Environment } from '@react-three/drei'
+import { Suspense, useState, useRef, useEffect } from 'react'
+import { PoolTable } from './pool/PoolTable'
+import { BallSystem } from './pool/BallSystem'
+import { CueStick } from './pool/CueStick'
+import { MobileControls } from './pool/MobileControls'
+import { ControlBox } from './pool/ControlBox'
+import { PerformanceStats } from './pool/PerformanceStats'
+import { GameUI } from './pool/GameUI'
+import { usePoolGame } from './pool/usePoolGame'
+import type { Vector3 } from 'three'
+import type { AudioManager } from '@/lib/audioManager'
+
+interface PoolGameProps {
+  matchId?: string;
+  onExitMatch?: () => void;
+  audioManager?: AudioManager;
+}
+
+export function PoolGame({ matchId, onExitMatch, audioManager }: PoolGameProps): JSX.Element {
+  const gameLogic = usePoolGame(matchId, audioManager)
+  const cameraRef = useRef<any>(null)
+
+  useEffect(() => {
+    // Initialize audio when component mounts
+    if (audioManager) {
+      audioManager.initializeOnUserGesture();
+    }
+  }, [audioManager])
+
+  return (
+    <div className="relative w-full h-screen bg-gradient-to-b from-green-900 to-green-700">
+      <Canvas
+        camera={{ 
+          position: [0, 12, 18], 
+          fov: 50,
+          near: 0.1,
+          far: 100
+        }}
+        shadows
+      >
+        <Suspense fallback={null}>
+          {/* Lighting Setup */}
+          <ambientLight intensity={0.4} />
+          <directionalLight
+            position={[10, 15, 10]}
+            intensity={0.8}
+            castShadow
+            shadow-mapSize={[2048, 2048]}
+            shadow-camera-left={-20}
+            shadow-camera-right={20}
+            shadow-camera-top={20}
+            shadow-camera-bottom={-20}
+          />
+          <pointLight position={[0, 10, 0]} intensity={0.5} />
+          
+          {/* Environment */}
+          <Environment preset="warehouse" />
+          
+          {/* Game Components */}
+          <PoolTable />
+          <BallSystem 
+            gameLogic={gameLogic}
+          />
+          <CueStick 
+            cueBallPosition={gameLogic.cueBallPosition}
+            isPlayerTurn={gameLogic.isPlayerTurn}
+            onShoot={gameLogic.shootCueBall}
+          />
+          
+          {/* Camera Controls */}
+          <OrbitControls
+            ref={cameraRef}
+            enableZoom={true}
+            enablePan={true}
+            enableRotate={true}
+            minDistance={5}
+            maxDistance={35}
+            maxPolarAngle={Math.PI / 2.2}
+            target={[0, 0, 0]}
+          />
+        </Suspense>
+      </Canvas>
+
+      {/* UI Components */}
+      <GameUI gameLogic={gameLogic} />
+      <MobileControls gameLogic={gameLogic} />
+      <ControlBox />
+      <PerformanceStats ballCount={16} />
+    </div>
+  )
+}

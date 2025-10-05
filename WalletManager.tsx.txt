@@ -1,0 +1,567 @@
+'use client'
+
+import React, { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { 
+  Wallet, 
+  Plus, 
+  Minus, 
+  History, 
+  CreditCard, 
+  Smartphone,
+  TrendingUp,
+  TrendingDown,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  DollarSign,
+  Target,
+  Trophy,
+  GameController2
+} from 'lucide-react';
+import { TournamentManager, User, Transaction } from '@/lib/tournament';
+
+interface WalletManagerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  user: User;
+  onUserUpdate: (user: User) => void;
+}
+
+interface DepositMethodProps {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  isEnabled: boolean;
+  onClick: () => void;
+}
+
+function DepositMethod({ icon, title, description, isEnabled, onClick }: DepositMethodProps): JSX.Element {
+  return (
+    <Card 
+      className={`cursor-pointer transition-all hover:shadow-lg ${
+        isEnabled ? 'hover:bg-blue-50 border-blue-200' : 'opacity-50 cursor-not-allowed'
+      }`}
+      onClick={isEnabled ? onClick : undefined}
+    >
+      <CardContent className="p-4 text-center">
+        <div className="w-12 h-12 mx-auto mb-3 bg-blue-100 rounded-full flex items-center justify-center">
+          {icon}
+        </div>
+        <h3 className="font-semibold mb-1">{title}</h3>
+        <p className="text-sm text-gray-600">{description}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface TransactionItemProps {
+  transaction: Transaction;
+}
+
+function TransactionItem({ transaction }: TransactionItemProps): JSX.Element {
+  const getIcon = () => {
+    switch (transaction.type) {
+      case 'entry_fee':
+        return <GameController2 className="w-4 h-4 text-red-600" />;
+      case 'winner_payout':
+        return <Trophy className="w-4 h-4 text-yellow-600" />;
+      case 'deposit':
+        return <TrendingUp className="w-4 h-4 text-green-600" />;
+      case 'withdrawal':
+        return <TrendingDown className="w-4 h-4 text-blue-600" />;
+      case 'server_fee':
+        return <Target className="w-4 h-4 text-purple-600" />;
+      default:
+        return <DollarSign className="w-4 h-4 text-gray-600" />;
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (transaction.status) {
+      case 'completed':
+        return 'text-green-600';
+      case 'pending':
+        return 'text-yellow-600';
+      case 'failed':
+        return 'text-red-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
+
+  const getStatusIcon = () => {
+    switch (transaction.status) {
+      case 'completed':
+        return <CheckCircle className="w-3 h-3" />;
+      case 'pending':
+        return <Clock className="w-3 h-3" />;
+      case 'failed':
+        return <XCircle className="w-3 h-3" />;
+      default:
+        return <AlertTriangle className="w-3 h-3" />;
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-white rounded-full">
+          {getIcon()}
+        </div>
+        <div>
+          <p className="font-semibold text-sm">{transaction.description}</p>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span>{new Date(transaction.timestamp).toLocaleDateString()}</span>
+            <span>•</span>
+            <span>{new Date(transaction.timestamp).toLocaleTimeString()}</span>
+            {transaction.matchId && (
+              <>
+                <span>•</span>
+                <span>Match: {transaction.matchId.slice(0, 8)}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="text-right">
+        <p className={`font-semibold ${
+          transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
+        }`}>
+          {transaction.amount > 0 ? '+' : ''}₹{Math.abs(transaction.amount)}
+        </p>
+        <div className={`flex items-center gap-1 text-xs ${getStatusColor()}`}>
+          {getStatusIcon()}
+          <span>{transaction.status}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function WalletManager({ isOpen, onClose, user, onUserUpdate }: WalletManagerProps): JSX.Element {
+  const [activeTab, setActiveTab] = useState<'overview' | 'deposit' | 'withdraw' | 'history'>('overview');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [depositAmount, setDepositAmount] = useState<string>('');
+  const [withdrawAmount, setWithdrawAmount] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
+
+  const tournamentManager = TournamentManager.getInstance();
+
+  useEffect(() => {
+    if (isOpen) {
+      loadTransactions();
+    }
+  }, [isOpen, user.id]);
+
+  const loadTransactions = () => {
+    const userTransactions = tournamentManager.getUserTransactions(user.id);
+    setTransactions(userTransactions);
+  };
+
+  const handleDeposit = async (amount: number) => {
+    setIsProcessing(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      // Simulate payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const success = tournamentManager.updateUserWallet(user.id, amount, 'deposit');
+      if (success) {
+        const updatedUser = tournamentManager.getUserById(user.id);
+        if (updatedUser) {
+          onUserUpdate(updatedUser);
+          setSuccess(`Successfully deposited ₹${amount} to your wallet!`);
+          setDepositAmount('');
+          loadTransactions();
+        }
+      } else {
+        setError('Failed to process deposit. Please try again.');
+      }
+    } catch (err) {
+      setError('Payment processing failed. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleWithdraw = async (amount: number) => {
+    if (amount > user.walletBalance) {
+      setError('Insufficient balance for withdrawal');
+      return;
+    }
+
+    setIsProcessing(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      // Simulate withdrawal processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const success = tournamentManager.updateUserWallet(user.id, -amount, 'withdrawal');
+      if (success) {
+        const updatedUser = tournamentManager.getUserById(user.id);
+        if (updatedUser) {
+          onUserUpdate(updatedUser);
+          setSuccess(`Successfully withdrew ₹${amount} from your wallet!`);
+          setWithdrawAmount('');
+          loadTransactions();
+        }
+      } else {
+        setError('Failed to process withdrawal. Please try again.');
+      }
+    } catch (err) {
+      setError('Withdrawal processing failed. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const quickDepositAmounts = [50, 100, 200, 500, 1000];
+  const quickWithdrawAmounts = [50, 100, 200];
+
+  const totalDeposits = transactions
+    .filter(t => t.type === 'deposit')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalWithdrawals = transactions
+    .filter(t => t.type === 'withdrawal')
+    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+  const totalEarnings = transactions
+    .filter(t => t.type === 'winner_payout')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalSpent = transactions
+    .filter(t => t.type === 'entry_fee')
+    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-2xl">
+            <Wallet className="w-6 h-6 text-green-600" />
+            Wallet Management
+          </DialogTitle>
+        </DialogHeader>
+
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="deposit">Deposit</TabsTrigger>
+            <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            {/* Balance Card */}
+            <Card className="bg-gradient-to-r from-green-500 to-blue-600 text-white">
+              <CardHeader>
+                <CardTitle className="text-xl">Current Balance</CardTitle>
+                <CardDescription className="text-green-100">
+                  Available for tournaments and withdrawals
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-4xl font-bold">₹{user.walletBalance}</p>
+              </CardContent>
+            </Card>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Total Deposits</p>
+                      <p className="text-xl font-bold text-green-600">₹{totalDeposits}</p>
+                    </div>
+                    <TrendingUp className="w-8 h-8 text-green-600" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Total Withdrawals</p>
+                      <p className="text-xl font-bold text-blue-600">₹{totalWithdrawals}</p>
+                    </div>
+                    <TrendingDown className="w-8 h-8 text-blue-600" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Tournament Earnings</p>
+                      <p className="text-xl font-bold text-yellow-600">₹{totalEarnings}</p>
+                    </div>
+                    <Trophy className="w-8 h-8 text-yellow-600" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Entry Fees Paid</p>
+                      <p className="text-xl font-bold text-red-600">₹{totalSpent}</p>
+                    </div>
+                    <GameController2 className="w-8 h-8 text-red-600" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Recent Transactions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+                <CardDescription>Your latest wallet transactions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {transactions.slice(0, 3).map((transaction) => (
+                    <TransactionItem key={transaction.id} transaction={transaction} />
+                  ))}
+                  {transactions.length === 0 && (
+                    <p className="text-center text-gray-500 py-4">No transactions yet</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="deposit" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Add Money to Wallet</CardTitle>
+                <CardDescription>
+                  Deposit money to play tournaments and earn prizes
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Quick Deposit Amounts */}
+                <div>
+                  <Label className="text-base font-semibold mb-3 block">Quick Deposit</Label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {quickDepositAmounts.map((amount) => (
+                      <Button
+                        key={amount}
+                        variant="outline"
+                        onClick={() => setDepositAmount(amount.toString())}
+                        className="h-12"
+                      >
+                        ₹{amount}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Amount */}
+                <div className="space-y-3">
+                  <Label htmlFor="deposit-amount">Custom Amount</Label>
+                  <Input
+                    id="deposit-amount"
+                    type="number"
+                    placeholder="Enter amount"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    min="1"
+                    max="10000"
+                  />
+                </div>
+
+                {/* Payment Methods */}
+                <div>
+                  <Label className="text-base font-semibold mb-3 block">Payment Methods</Label>
+                  <div className="grid gap-3">
+                    <DepositMethod
+                      icon={<CreditCard className="w-6 h-6 text-blue-600" />}
+                      title="UPI Payment"
+                      description="Pay with any UPI app (GPay, PhonePe, Paytm)"
+                      isEnabled={true}
+                      onClick={() => {
+                        const amount = parseFloat(depositAmount);
+                        if (amount && amount > 0 && amount <= 10000) {
+                          handleDeposit(amount);
+                        } else {
+                          setError('Please enter a valid amount between ₹1 and ₹10,000');
+                        }
+                      }}
+                    />
+                    
+                    <DepositMethod
+                      icon={<Smartphone className="w-6 h-6 text-green-600" />}
+                      title="Mobile Banking"
+                      description="Direct bank transfer via mobile banking"
+                      isEnabled={false}
+                      onClick={() => {}}
+                    />
+                  </div>
+                </div>
+
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                {success && (
+                  <Alert className="border-green-200 bg-green-50">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-800">{success}</AlertDescription>
+                  </Alert>
+                )}
+
+                <Button
+                  onClick={() => {
+                    const amount = parseFloat(depositAmount);
+                    if (amount && amount > 0 && amount <= 10000) {
+                      handleDeposit(amount);
+                    } else {
+                      setError('Please enter a valid amount between ₹1 and ₹10,000');
+                    }
+                  }}
+                  disabled={isProcessing || !depositAmount || parseFloat(depositAmount) <= 0}
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  size="lg"
+                >
+                  {isProcessing ? 'Processing...' : `Deposit ₹${depositAmount || '0'}`}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="withdraw" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Withdraw Money</CardTitle>
+                <CardDescription>
+                  Transfer your winnings to your bank account
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Available balance: ₹{user.walletBalance}. Minimum withdrawal: ₹50
+                  </AlertDescription>
+                </Alert>
+
+                {/* Quick Withdraw Amounts */}
+                <div>
+                  <Label className="text-base font-semibold mb-3 block">Quick Withdraw</Label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {quickWithdrawAmounts
+                      .filter(amount => amount <= user.walletBalance)
+                      .map((amount) => (
+                      <Button
+                        key={amount}
+                        variant="outline"
+                        onClick={() => setWithdrawAmount(amount.toString())}
+                        className="h-12"
+                      >
+                        ₹{amount}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Amount */}
+                <div className="space-y-3">
+                  <Label htmlFor="withdraw-amount">Custom Amount</Label>
+                  <Input
+                    id="withdraw-amount"
+                    type="number"
+                    placeholder="Enter amount"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    min="50"
+                    max={user.walletBalance}
+                  />
+                </div>
+
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                {success && (
+                  <Alert className="border-green-200 bg-green-50">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-800">{success}</AlertDescription>
+                  </Alert>
+                )}
+
+                <Button
+                  onClick={() => {
+                    const amount = parseFloat(withdrawAmount);
+                    if (amount && amount >= 50 && amount <= user.walletBalance) {
+                      handleWithdraw(amount);
+                    } else {
+                      setError('Please enter a valid amount between ₹50 and your available balance');
+                    }
+                  }}
+                  disabled={isProcessing || !withdrawAmount || parseFloat(withdrawAmount) < 50 || parseFloat(withdrawAmount) > user.walletBalance}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  size="lg"
+                >
+                  {isProcessing ? 'Processing...' : `Withdraw ₹${withdrawAmount || '0'}`}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="history" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Transaction History</CardTitle>
+                <CardDescription>
+                  Complete record of all your wallet transactions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {transactions.length === 0 ? (
+                    <div className="text-center py-8">
+                      <History className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">No transactions yet</p>
+                      <p className="text-sm text-gray-400">Your transaction history will appear here</p>
+                    </div>
+                  ) : (
+                    transactions.map((transaction) => (
+                      <TransactionItem key={transaction.id} transaction={transaction} />
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}

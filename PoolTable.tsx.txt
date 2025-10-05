@@ -1,0 +1,92 @@
+'use client'
+
+import { useRef } from 'react'
+import { Mesh } from 'three'
+
+export function PoolTable(): JSX.Element {
+  const tableRef = useRef<Mesh>(null)
+
+  // Standard pool table dimensions (scaled down for game)
+  const TABLE_WIDTH = 14
+  const TABLE_LENGTH = 28
+  const TABLE_HEIGHT = 0.8
+  const RAIL_HEIGHT = 0.6
+  const POCKET_RADIUS = 1.2
+
+  return (
+    <group>
+      {/* Table Base */}
+      <mesh position={[0, -TABLE_HEIGHT / 2, 0]} receiveShadow>
+        <boxGeometry args={[TABLE_LENGTH + 2, TABLE_HEIGHT, TABLE_WIDTH + 2]} />
+        <meshLambertMaterial color="#4A4A4A" />
+      </mesh>
+      
+      {/* Playing Surface (Felt) */}
+      <mesh ref={tableRef} position={[0, 0.01, 0]} receiveShadow>
+        <boxGeometry args={[TABLE_LENGTH, 0.1, TABLE_WIDTH]} />
+        <meshLambertMaterial color="#1B5E20" />
+      </mesh>
+      
+      {/* Rails */}
+      {/* Top rail */}
+      <mesh position={[0, RAIL_HEIGHT / 2, (TABLE_WIDTH + 1) / 2]} castShadow>
+        <boxGeometry args={[TABLE_LENGTH + 2, RAIL_HEIGHT, 1]} />
+        <meshLambertMaterial color="#654321" />
+      </mesh>
+      
+      {/* Bottom rail */}
+      <mesh position={[0, RAIL_HEIGHT / 2, -(TABLE_WIDTH + 1) / 2]} castShadow>
+        <boxGeometry args={[TABLE_LENGTH + 2, RAIL_HEIGHT, 1]} />
+        <meshLambertMaterial color="#654321" />
+      </mesh>
+      
+      {/* Left rail */}
+      <mesh position={[-(TABLE_LENGTH + 1) / 2, RAIL_HEIGHT / 2, 0]} castShadow>
+        <boxGeometry args={[1, RAIL_HEIGHT, TABLE_WIDTH]} />
+        <meshLambertMaterial color="#654321" />
+      </mesh>
+      
+      {/* Right rail */}
+      <mesh position={[(TABLE_LENGTH + 1) / 2, RAIL_HEIGHT / 2, 0]} castShadow>
+        <boxGeometry args={[1, RAIL_HEIGHT, TABLE_WIDTH]} />
+        <meshLambertMaterial color="#654321" />
+      </mesh>
+      
+      {/* Corner Pockets */}
+      <Pocket position={[-TABLE_LENGTH/2 + 0.5, 0.2, -TABLE_WIDTH/2 + 0.5]} />
+      <Pocket position={[TABLE_LENGTH/2 - 0.5, 0.2, -TABLE_WIDTH/2 + 0.5]} />
+      <Pocket position={[-TABLE_LENGTH/2 + 0.5, 0.2, TABLE_WIDTH/2 - 0.5]} />
+      <Pocket position={[TABLE_LENGTH/2 - 0.5, 0.2, TABLE_WIDTH/2 - 0.5]} />
+      
+      {/* Side Pockets */}
+      <Pocket position={[0, 0.2, -TABLE_WIDTH/2 + 0.2]} />
+      <Pocket position={[0, 0.2, TABLE_WIDTH/2 - 0.2]} />
+      
+      {/* Table Markings */}
+      {/* Foot spot (where balls are racked) */}
+      <mesh position={[TABLE_LENGTH/4, 0.02, 0]}>
+        <circleGeometry args={[0.2, 16]} />
+        <meshLambertMaterial color="#FFFFFF" />
+      </mesh>
+      
+      {/* Head spot (behind head string) */}
+      <mesh position={[-TABLE_LENGTH/4, 0.02, 0]}>
+        <circleGeometry args={[0.2, 16]} />
+        <meshLambertMaterial color="#FFFFFF" />
+      </mesh>
+    </group>
+  )
+}
+
+interface PocketProps {
+  position: [number, number, number]
+}
+
+function Pocket({ position }: PocketProps): JSX.Element {
+  return (
+    <mesh position={position}>
+      <cylinderGeometry args={[1.2, 1.0, 0.5, 16]} />
+      <meshLambertMaterial color="#000000" />
+    </mesh>
+  )
+}

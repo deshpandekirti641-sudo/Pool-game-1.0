@@ -1,0 +1,132 @@
+'use client'
+
+import { useRef, useEffect } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { Mesh, Vector3 } from 'three'
+import type { PoolGameLogic } from './usePoolGame'
+
+interface BallSystemProps {
+  gameLogic: PoolGameLogic
+}
+
+export function BallSystem({ gameLogic }: BallSystemProps): JSX.Element {
+  return (
+    <group>
+      {gameLogic.balls.map((ball, index) => (
+        <PoolBall
+          key={index}
+          ball={ball}
+          onPocketed={() => gameLogic.pocketBall(index)}
+        />
+      ))}
+    </group>
+  )
+}
+
+interface PoolBallProps {
+  ball: {
+    id: number
+    position: Vector3
+    velocity: Vector3
+    color: string
+    number: number | null
+    isPocketed: boolean
+  }
+  onPocketed: () => void
+}
+
+function PoolBall({ ball, onPocketed }: PoolBallProps): JSX.Element {
+  const ballRef = useRef<Mesh>(null)
+  const BALL_RADIUS = 0.5
+  const FRICTION = 0.98
+  const MIN_VELOCITY = 0.01
+  const TABLE_WIDTH = 14
+  const TABLE_LENGTH = 28
+  const POCKET_POSITIONS = [
+    new Vector3(-TABLE_LENGTH/2 + 0.5, 0, -TABLE_WIDTH/2 + 0.5), // Corner
+    new Vector3(TABLE_LENGTH/2 - 0.5, 0, -TABLE_WIDTH/2 + 0.5),  // Corner
+    new Vector3(-TABLE_LENGTH/2 + 0.5, 0, TABLE_WIDTH/2 - 0.5),  // Corner
+    new Vector3(TABLE_LENGTH/2 - 0.5, 0, TABLE_WIDTH/2 - 0.5),   // Corner
+    new Vector3(0, 0, -TABLE_WIDTH/2 + 0.2),                     // Side
+    new Vector3(0, 0, TABLE_WIDTH/2 - 0.2),                      // Side
+  ]
+
+  useFrame(() => {
+    if (!ballRef.current || ball.isPocketed) return
+
+    // Check for pocketing
+    for (const pocketPos of POCKET_POSITIONS) {
+      const distance = ball.position.distanceTo(pocketPos)
+      if (distance < 1.0) {
+        onPocketed()
+        return
+      }
+    }
+
+    // Apply velocity
+    if (ball.velocity.length() > MIN_VELOCITY) {
+      ball.position.add(ball.velocity.clone().multiplyScalar(0.016))
+      ball.velocity.multiplyScalar(FRICTION)
+    } else {
+      ball.velocity.set(0, 0, 0)
+    }
+
+    // Wall collisions
+    const halfWidth = TABLE_WIDTH / 2 - BALL_RADIUS
+    const halfLength = TABLE_LENGTH / 2 - BALL_RADIUS
+
+    if (ball.position.x > halfLength) {
+      ball.position.x = halfLength
+      ball.velocity.x *= -0.8
+    }
+    if (ball.position.x < -halfLength) {
+      ball.position.x = -halfLength
+      ball.velocity.x *= -0.8
+    }
+    if (ball.position.z > halfWidth) {
+      ball.position.z = halfWidth
+      ball.velocity.z *= -0.8
+    }
+    if (ball.position.z < -halfWidth) {
+      ball.position.z = -halfWidth
+      ball.velocity.z *= -0.8
+    }
+
+    // Update mesh position
+    ballRef.current.position.copy(ball.position)
+    
+    // Rotate ball based on movement
+    if (ball.velocity.length() > 0) {
+      const rotationSpeed = ball.velocity.length() * 2
+      ballRef.current.rotateX(rotationSpeed * 0.016)
+    }
+  })
+
+  if (ball.isPocketed) {
+    return <></>
+  }
+
+  return (
+    <mesh 
+      ref={ballRef} 
+      position={ball.position.toArray()} 
+      castShadow 
+      receiveShadow
+    >
+      <sphereGeometry args={[BALL_RADIUS, 32, 32]} />
+      <meshPhongMaterial 
+        color={ball.color} 
+        shininess={100}
+        specular="#FFFFFF"
+      />
+      
+      {/* Ball Number */}
+      {ball.number && (
+        <mesh position={[0, 0, BALL_RADIUS + 0.01]}>
+          <circleGeometry args={[0.15, 16]} />
+          <meshLambertMaterial color="#FFFFFF" />
+        </mesh>
+      )}
+    </mesh>
+  )
+}

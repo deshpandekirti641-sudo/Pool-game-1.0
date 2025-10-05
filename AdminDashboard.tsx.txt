@@ -1,0 +1,664 @@
+'use client'
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { 
+  Shield, 
+  TrendingUp, 
+  Users, 
+  DollarSign, 
+  Activity, 
+  AlertTriangle,
+  Eye,
+  RefreshCw,
+  Download,
+  Settings,
+  Wallet,
+  GameController2,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Phone,
+  Mail
+} from 'lucide-react';
+import { TournamentManager, AdminStats, User, Match, Transaction, OTPManager } from '@/lib/tournament';
+
+interface AdminDashboardProps {
+  onClose: () => void;
+}
+
+interface AdminAuthProps {
+  onAuthenticated: (contact: string) => void;
+}
+
+interface StatsCardProps {
+  icon: React.ReactNode;
+  title: string;
+  value: string | number;
+  description: string;
+  trend?: {
+    value: string;
+    isPositive: boolean;
+  };
+}
+
+function StatsCard({ icon, title, value, description, trend }: StatsCardProps): JSX.Element {
+  return (
+    <Card className="hover:shadow-lg transition-shadow">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              {icon}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-600">{title}</p>
+              <p className="text-2xl font-bold">{value}</p>
+              {trend && (
+                <p className={`text-xs flex items-center mt-1 ${
+                  trend.isPositive ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  <TrendingUp size={12} className={!trend.isPositive ? 'rotate-180' : ''} />
+                  <span className="ml-1">{trend.value}</span>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+        <p className="text-sm text-gray-500 mt-2">{description}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AdminAuth({ onAuthenticated }: AdminAuthProps): JSX.Element {
+  const [contact, setContact] = useState<string>('');
+  const [otp, setOtp] = useState<string>('');
+  const [step, setStep] = useState<'contact' | 'verify'>('contact');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const [generatedOTP, setGeneratedOTP] = useState<string>('');
+
+  const tournamentManager = TournamentManager.getInstance();
+
+  const handleSendOTP = async () => {
+    if (!contact.trim()) {
+      setError('Please enter your contact information');
+      return;
+    }
+
+    if (!tournamentManager.verifyDeveloperAccess(contact)) {
+      setError('Access denied. You are not authorized to access the admin panel.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const otpCode = OTPManager.generateOTP(contact);
+      setGeneratedOTP(otpCode);
+      
+      // Simulate sending OTP
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setStep('verify');
+      console.log(`🔐 Admin OTP for ${contact}: ${otpCode}`);
+    } catch (err) {
+      setError('Failed to send OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = () => {
+    if (!otp.trim()) {
+      setError('Please enter the OTP');
+      return;
+    }
+
+    const isValid = OTPManager.verifyOTP(contact, otp);
+    if (!isValid) {
+      setError('Invalid or expired OTP');
+      return;
+    }
+
+    onAuthenticated(contact);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield className="w-8 h-8 text-blue-600" />
+          </div>
+          <CardTitle>Admin Access</CardTitle>
+          <CardDescription>
+            {step === 'contact' 
+              ? 'Enter your authorized contact information' 
+              : 'Enter the OTP sent to your contact'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {step === 'contact' ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="contact">Phone Number or Email</Label>
+                <Input
+                  id="contact"
+                  type="text"
+                  placeholder="8976096360 or deshpandekirti641@gmail.com"
+                  value={contact}
+                  onChange={(e) => setContact(e.target.value)}
+                />
+              </div>
+              <Button 
+                onClick={handleSendOTP} 
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Sending...' : 'Send OTP'}
+              </Button>
+            </>
+          ) : (
+            <>
+              {generatedOTP && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Development Mode</AlertTitle>
+                  <AlertDescription>
+                    Your OTP is: <strong>{generatedOTP}</strong>
+                  </AlertDescription>
+                </Alert>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="otp">Enter OTP</Label>
+                <Input
+                  id="otp"
+                  type="text"
+                  placeholder="Enter 6-digit OTP"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="text-center text-xl tracking-widest"
+                  maxLength={6}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setStep('contact');
+                    setOtp('');
+                    setError('');
+                  }}
+                  className="flex-1"
+                >
+                  Back
+                </Button>
+                <Button 
+                  onClick={handleVerifyOTP}
+                  className="flex-1"
+                  disabled={otp.length !== 6}
+                >
+                  Verify
+                </Button>
+              </div>
+            </>
+          )}
+          
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
+          <div className="text-center text-xs text-gray-500">
+            Authorized contacts only: 8976096360, deshpandekirti641@gmail.com
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export function AdminDashboard({ onClose }: AdminDashboardProps): JSX.Element {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [adminContact, setAdminContact] = useState<string>('');
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allMatches, setAllMatches] = useState<Match[]>([]);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [developerBalance, setDeveloperBalance] = useState<number>(0);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  const tournamentManager = TournamentManager.getInstance();
+
+  useEffect(() => {
+    if (isAuthenticated && adminContact) {
+      refreshData();
+      const interval = setInterval(refreshData, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, adminContact]);
+
+  const refreshData = async () => {
+    if (!adminContact) return;
+    
+    setRefreshing(true);
+    try {
+      const adminStats = tournamentManager.getAdminStats(adminContact);
+      const balance = tournamentManager.getDeveloperWalletBalance(adminContact);
+      
+      setStats(adminStats);
+      setDeveloperBalance(balance);
+      
+      // Get all data for monitoring
+      setAllUsers(Array.from((tournamentManager as any).users.values()));
+      setAllMatches(tournamentManager.getAllMatches());
+      setAllTransactions(Array.from((tournamentManager as any).transactions.values()));
+    } catch (error) {
+      console.error('Failed to refresh admin data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleAuthenticated = (contact: string) => {
+    setAdminContact(contact);
+    setIsAuthenticated(true);
+  };
+
+  const exportData = (type: 'users' | 'matches' | 'transactions') => {
+    let data: any[] = [];
+    let filename = '';
+
+    switch (type) {
+      case 'users':
+        data = allUsers;
+        filename = `users-${new Date().toISOString().split('T')[0]}.json`;
+        break;
+      case 'matches':
+        data = allMatches;
+        filename = `matches-${new Date().toISOString().split('T')[0]}.json`;
+        break;
+      case 'transactions':
+        data = allTransactions;
+        filename = `transactions-${new Date().toISOString().split('T')[0]}.json`;
+        break;
+    }
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  if (!isAuthenticated) {
+    return <AdminAuth onAuthenticated={handleAuthenticated} />;
+  }
+
+  if (!stats) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading admin dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+            <p className="text-gray-600">Logged in as: {adminContact}</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <Card className="px-4 py-2">
+              <div className="flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Developer Wallet</p>
+                  <p className="text-lg font-bold text-green-600">₹{developerBalance}</p>
+                </div>
+              </div>
+            </Card>
+            <Button 
+              onClick={refreshData} 
+              variant="outline"
+              disabled={refreshing}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button onClick={onClose} variant="outline">
+              Close
+            </Button>
+          </div>
+        </div>
+
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatsCard
+            icon={<Users className="w-6 h-6 text-blue-600" />}
+            title="Total Users"
+            value={stats.totalUsers}
+            description="Registered players"
+            trend={{ value: `+${stats.userRegistrations.today} today`, isPositive: true }}
+          />
+          <StatsCard
+            icon={<GameController2 className="w-6 h-6 text-green-600" />}
+            title="Active Matches"
+            value={stats.activeMatches}
+            description="Currently playing"
+            trend={{ value: `${stats.completedMatches} completed`, isPositive: true }}
+          />
+          <StatsCard
+            icon={<DollarSign className="w-6 h-6 text-purple-600" />}
+            title="Total Revenue"
+            value={`₹${stats.totalRevenue}`}
+            description="Server fees collected"
+            trend={{ value: `+₹${stats.dailyRevenue} today`, isPositive: true }}
+          />
+          <StatsCard
+            icon={<Clock className="w-6 h-6 text-orange-600" />}
+            title="Avg Match Duration"
+            value={`${Math.round(stats.averageMatchDuration)}s`}
+            description="Average game time"
+            trend={{ value: "Within target", isPositive: true }}
+          />
+        </div>
+
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="matches">Matches</TabsTrigger>
+            <TabsTrigger value="transactions">Transactions</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>User Registration Trends</CardTitle>
+                  <CardDescription>New user signups over time</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span>Today</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-32 bg-gray-200 rounded-full h-2">
+                          <div className="bg-blue-600 h-2 rounded-full" style={{ width: '70%' }}></div>
+                        </div>
+                        <span className="text-sm font-semibold">{stats.userRegistrations.today}</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>This Week</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-32 bg-gray-200 rounded-full h-2">
+                          <div className="bg-green-600 h-2 rounded-full" style={{ width: '85%' }}></div>
+                        </div>
+                        <span className="text-sm font-semibold">{stats.userRegistrations.thisWeek}</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>This Month</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-32 bg-gray-200 rounded-full h-2">
+                          <div className="bg-purple-600 h-2 rounded-full" style={{ width: '100%' }}></div>
+                        </div>
+                        <span className="text-sm font-semibold">{stats.userRegistrations.thisMonth}</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>System Health</CardTitle>
+                  <CardDescription>Real-time system status</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span>Server Status</span>
+                      <Badge className="bg-green-100 text-green-800">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Online
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Database</span>
+                      <Badge className="bg-green-100 text-green-800">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Connected
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Payment System</span>
+                      <Badge className="bg-green-100 text-green-800">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Operational
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Match System</span>
+                      <Badge className="bg-green-100 text-green-800">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Active
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="users" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-semibold">User Management</h2>
+              <Button onClick={() => exportData('users')} variant="outline">
+                <Download className="w-4 h-4 mr-2" />
+                Export Users
+              </Button>
+            </div>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Users</CardTitle>
+                <CardDescription>Latest user registrations and activity</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {allUsers.slice(0, 10).map((user) => (
+                    <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-semibold text-blue-600">
+                            {user.username.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-semibold">{user.username}</p>
+                          <p className="text-sm text-gray-600 flex items-center gap-1">
+                            {user.phone && <Phone size={12} />}
+                            {user.email && <Mail size={12} />}
+                            {user.phone || user.email}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">₹{user.walletBalance}</p>
+                        <p className="text-sm text-gray-600">{user.gamesPlayed} games</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="matches" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-semibold">Match Monitoring</h2>
+              <Button onClick={() => exportData('matches')} variant="outline">
+                <Download className="w-4 h-4 mr-2" />
+                Export Matches
+              </Button>
+            </div>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Matches</CardTitle>
+                <CardDescription>Live and completed match activity</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {allMatches.slice(0, 10).map((match) => (
+                    <div key={match.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-semibold">
+                          {match.player1Username} vs {match.player2Username || 'Waiting...'}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Prize Pool: ₹{match.prizePool}
+                          {match.winnerId && ` • Winner: ${match.winnerUsername}`}
+                        </p>
+                      </div>
+                      <Badge className={
+                        match.status === 'active' ? 'bg-green-100 text-green-800' :
+                        match.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                        match.status === 'waiting' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }>
+                        {match.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="transactions" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-semibold">Transaction History</h2>
+              <Button onClick={() => exportData('transactions')} variant="outline">
+                <Download className="w-4 h-4 mr-2" />
+                Export Transactions
+              </Button>
+            </div>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Transactions</CardTitle>
+                <CardDescription>Payment and wallet activity</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {allTransactions.slice(0, 15).map((transaction) => (
+                    <div key={transaction.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-semibold text-sm">{transaction.description}</p>
+                        <p className="text-xs text-gray-600">
+                          {new Date(transaction.timestamp).toLocaleString()}
+                          {transaction.matchId && ` • Match: ${transaction.matchId.slice(0, 8)}`}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-semibold ${
+                          transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {transaction.amount > 0 ? '+' : ''}₹{transaction.amount}
+                        </p>
+                        <Badge variant={transaction.status === 'completed' ? 'default' : 'destructive'}>
+                          {transaction.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <h2 className="text-2xl font-semibold">System Settings</h2>
+            
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Match Configuration</CardTitle>
+                  <CardDescription>Tournament and match settings</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Entry Fee</Label>
+                      <p className="text-lg font-semibold">₹10</p>
+                    </div>
+                    <div>
+                      <Label>Winner Payout</Label>
+                      <p className="text-lg font-semibold">₹16</p>
+                    </div>
+                    <div>
+                      <Label>Server Fee</Label>
+                      <p className="text-lg font-semibold">₹4</p>
+                    </div>
+                    <div>
+                      <Label>Match Duration</Label>
+                      <p className="text-lg font-semibold">60s</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Admin Access</CardTitle>
+                  <CardDescription>Authorized developer contacts</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm">8976096360</span>
+                      <Badge variant="outline">Active</Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm">deshpandekirti641@gmail.com</span>
+                      <Badge variant="outline">Active</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}
