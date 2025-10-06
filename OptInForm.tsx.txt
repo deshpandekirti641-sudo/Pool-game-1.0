@@ -1,0 +1,327 @@
+'use client';
+
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Mail, Gift, Trophy, Bell, Shield, Check, AlertCircle } from 'lucide-react';
+
+interface FormData {
+  email: string;
+  firstName: string;
+  lastName: string;
+  consent: boolean;
+  interests: string[];
+}
+
+interface FormState {
+  isLoading: boolean;
+  isSubmitted: boolean;
+  error: string;
+  success: string;
+}
+
+const INTEREST_OPTIONS = [
+  { id: 'tournaments', label: '🏆 Tournament Updates', icon: Trophy },
+  { id: 'bonuses', label: '🎁 Special Bonuses', icon: Gift },
+  { id: 'tips', label: '🎱 Pool Tips & Strategies', icon: Bell },
+  { id: 'news', label: '📰 Game Updates', icon: Mail },
+];
+
+export default function OptInForm(): JSX.Element {
+  const [formData, setFormData] = useState<FormData>({
+    email: '',
+    firstName: '',
+    lastName: '',
+    consent: false,
+    interests: ['tournaments', 'bonuses']
+  });
+
+  const [formState, setFormState] = useState<FormState>({
+    isLoading: false,
+    isSubmitted: false,
+    error: '',
+    success: ''
+  });
+
+  const handleInputChange = (field: keyof FormData, value: string | boolean | string[]): void => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    
+    // Clear errors when user starts typing
+    if (formState.error) {
+      setFormState(prev => ({ ...prev, error: '' }));
+    }
+  };
+
+  const handleInterestToggle = (interestId: string): void => {
+    const updatedInterests = formData.interests.includes(interestId)
+      ? formData.interests.filter(id => id !== interestId)
+      : [...formData.interests, interestId];
+    
+    handleInputChange('interests', updatedInterests);
+  };
+
+  const validateForm = (): string | null => {
+    if (!formData.email.trim()) {
+      return 'Email address is required';
+    }
+    
+    if (!formData.email.includes('@') || !formData.email.includes('.')) {
+      return 'Please enter a valid email address';
+    }
+    
+    if (!formData.consent) {
+      return 'You must agree to receive marketing emails to subscribe';
+    }
+    
+    if (formData.interests.length === 0) {
+      return 'Please select at least one interest';
+    }
+    
+    return null;
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault();
+    
+    const validationError = validateForm();
+    if (validationError) {
+      setFormState(prev => ({ ...prev, error: validationError }));
+      return;
+    }
+
+    setFormState(prev => ({ ...prev, isLoading: true, error: '', success: '' }));
+
+    try {
+      const response = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          source: 'pool_tournament_app',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Subscription failed');
+      }
+
+      setFormState(prev => ({
+        ...prev,
+        isLoading: false,
+        isSubmitted: true,
+        success: result.message || 'Successfully subscribed! Please check your email to confirm.'
+      }));
+
+      // Reset form
+      setFormData({
+        email: '',
+        firstName: '',
+        lastName: '',
+        consent: false,
+        interests: ['tournaments', 'bonuses']
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+      setFormState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: errorMessage
+      }));
+    }
+  };
+
+  if (formState.isSubmitted && formState.success) {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardContent className="pt-6">
+          <div className="text-center space-y-4">
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto">
+              <Check className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-green-800 dark:text-green-200">
+                Successfully Subscribed!
+              </h3>
+              <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                {formState.success}
+              </p>
+            </div>
+            <Button 
+              onClick={() => setFormState({ isLoading: false, isSubmitted: false, error: '', success: '' })}
+              variant="outline"
+              size="sm"
+            >
+              Subscribe Another Email
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader className="text-center">
+        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Mail className="w-6 h-6 text-white" />
+        </div>
+        <CardTitle className="text-xl font-bold">Stay Updated</CardTitle>
+        <CardDescription>
+          Get exclusive pool tournament updates, special bonuses, and tips delivered to your inbox
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Email Field */}
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-sm font-medium">
+              Email Address <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="you@example.com"
+              value={formData.email}
+              onChange={(e) => handleInputChange('email', e.target.value)}
+              required
+              className="w-full"
+              disabled={formState.isLoading}
+            />
+          </div>
+
+          {/* Name Fields */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="firstName" className="text-sm font-medium">
+                First Name
+              </Label>
+              <Input
+                id="firstName"
+                name="firstName"
+                type="text"
+                placeholder="John"
+                value={formData.firstName}
+                onChange={(e) => handleInputChange('firstName', e.target.value)}
+                className="w-full"
+                disabled={formState.isLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lastName" className="text-sm font-medium">
+                Last Name
+              </Label>
+              <Input
+                id="lastName"
+                name="lastName"
+                type="text"
+                placeholder="Doe"
+                value={formData.lastName}
+                onChange={(e) => handleInputChange('lastName', e.target.value)}
+                className="w-full"
+                disabled={formState.isLoading}
+              />
+            </div>
+          </div>
+
+          {/* Interest Selection */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">
+              What interests you? <span className="text-red-500">*</span>
+            </Label>
+            <div className="space-y-2">
+              {INTEREST_OPTIONS.map((option) => (
+                <div key={option.id} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={option.id}
+                    checked={formData.interests.includes(option.id)}
+                    onCheckedChange={() => handleInterestToggle(option.id)}
+                    disabled={formState.isLoading}
+                  />
+                  <Label htmlFor={option.id} className="text-sm font-normal flex items-center space-x-2">
+                    <span>{option.label}</span>
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Consent Checkbox */}
+          <div className="flex items-start space-x-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <Checkbox
+              id="consent"
+              checked={formData.consent}
+              onCheckedChange={(checked) => handleInputChange('consent', checked as boolean)}
+              required
+              disabled={formState.isLoading}
+              className="mt-0.5"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="consent" className="text-xs font-medium leading-tight">
+                <span className="text-red-500">* </span>
+                I agree to receive marketing emails from Pool Tournament
+              </Label>
+              <p className="text-xs text-gray-600 dark:text-gray-400 leading-tight">
+                <Shield className="w-3 h-3 inline mr-1" />
+                Your email is safe with us. Unsubscribe anytime.
+              </p>
+            </div>
+          </div>
+
+          {/* Error Alert */}
+          {formState.error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{formState.error}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={formState.isLoading}
+          >
+            {formState.isLoading ? (
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Subscribing...</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Mail className="w-4 h-4" />
+                <span>Subscribe Now</span>
+              </div>
+            )}
+          </Button>
+        </form>
+
+        {/* Benefits */}
+        <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <p className="text-xs text-gray-600 dark:text-gray-400 text-center">
+            Join 10,000+ pool players already subscribed
+          </p>
+          <div className="flex flex-wrap justify-center gap-1 mt-2">
+            <Badge variant="secondary" className="text-xs">No Spam</Badge>
+            <Badge variant="secondary" className="text-xs">Weekly Updates</Badge>
+            <Badge variant="secondary" className="text-xs">Exclusive Bonuses</Badge>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

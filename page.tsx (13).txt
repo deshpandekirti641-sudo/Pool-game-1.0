@@ -1,0 +1,197 @@
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle, Home, Mail, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+
+interface PageProps {
+  searchParams: { [key: string]: string | string[] | undefined };
+}
+
+export default function SubscriptionErrorPage({ searchParams }: PageProps): JSX.Element {
+  const reason = searchParams.reason as string || 'unknown';
+
+  const getErrorInfo = (reason: string) => {
+    switch (reason) {
+      case 'invalid_token':
+        return {
+          title: 'Invalid or Expired Link',
+          description: 'The confirmation link you used is invalid or has expired.',
+          suggestions: [
+            'Check if you clicked the latest confirmation email',
+            'Look for the email in your spam/junk folder',
+            'Try subscribing again with a fresh email'
+          ]
+        };
+      case 'server_error':
+        return {
+          title: 'Server Error',
+          description: 'We encountered a technical issue while processing your request.',
+          suggestions: [
+            'Please try again in a few minutes',
+            'Check your internet connection',
+            'Contact support if the problem persists'
+          ]
+        };
+      case 'already_confirmed':
+        return {
+          title: 'Already Confirmed',
+          description: 'This email subscription has already been confirmed.',
+          suggestions: [
+            'You should already be receiving our emails',
+            'Check your inbox and spam folder',
+            'Contact support if you\'re not receiving emails'
+          ]
+        };
+      case 'not_found':
+        return {
+          title: 'Subscription Not Found',
+          description: 'We couldn\'t find a subscription associated with this link.',
+          suggestions: [
+            'Make sure you clicked the correct link',
+            'Try subscribing again',
+            'Check if you used a different email address'
+          ]
+        };
+      default:
+        return {
+          title: 'Subscription Error',
+          description: 'Something went wrong with your subscription request.',
+          suggestions: [
+            'Please try the process again',
+            'Check your internet connection',
+            'Contact our support team if issues persist'
+          ]
+        };
+    }
+  };
+
+  const errorInfo = getErrorInfo(reason);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl mx-auto space-y-6">
+        {/* Error Card */}
+        <Card className="text-center">
+          <CardHeader className="pb-4">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
+            </div>
+            <CardTitle className="text-2xl font-bold text-red-800 dark:text-red-200">
+              {errorInfo.title}
+            </CardTitle>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">
+              {errorInfo.description}
+            </p>
+          </CardHeader>
+          
+          <CardContent className="space-y-6">
+            {/* Error Details */}
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Error Code:</strong> {reason.toUpperCase()}
+              </AlertDescription>
+            </Alert>
+
+            {/* Suggestions */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 text-left">
+              <h3 className="font-semibold text-lg mb-4 flex items-center">
+                <Mail className="w-5 h-5 mr-2 text-blue-600" />
+                What you can do:
+              </h3>
+              <ul className="space-y-2">
+                {errorInfo.suggestions.map((suggestion, index) => (
+                  <li key={index} className="flex items-start space-x-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
+                    <span className="text-gray-700 dark:text-gray-300">{suggestion}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Common Solutions */}
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
+              <h4 className="font-medium text-yellow-800 dark:text-yellow-200 mb-2">
+                💡 Quick Fix
+              </h4>
+              <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                Most subscription issues can be resolved by simply subscribing again with a fresh form. 
+                This will generate a new confirmation email.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-4">
+              <Button asChild className="flex-1">
+                <Link href="/#subscribe" className="flex items-center justify-center">
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Try Subscribing Again
+                </Link>
+              </Button>
+              <Button variant="outline" asChild className="flex-1">
+                <Link href="/" className="flex items-center justify-center">
+                  <Home className="w-4 h-4 mr-2" />
+                  Back to Pool Game
+                </Link>
+              </Button>
+            </div>
+
+            {/* Support Info */}
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+              <h4 className="font-medium mb-2">Need Help?</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                If you continue to experience issues, please contact our support team:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="bg-gray-50 dark:bg-gray-800 rounded p-3">
+                  <div className="font-medium">Email Support</div>
+                  <div className="text-blue-600 dark:text-blue-400">support@pooltournament.com</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded p-3">
+                  <div className="font-medium">Response Time</div>
+                  <div className="text-green-600 dark:text-green-400">Within 24 hours</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Debug Info for Development */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <details className="text-left">
+                  <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    Debug Information
+                  </summary>
+                  <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded text-xs font-mono">
+                    <div><strong>Error Reason:</strong> {reason}</div>
+                    <div><strong>URL:</strong> {typeof window !== 'undefined' ? window.location.href : 'N/A'}</div>
+                    <div><strong>Timestamp:</strong> {new Date().toISOString()}</div>
+                  </div>
+                </details>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Related Links */}
+        <Card className="text-center bg-gradient-to-r from-gray-50 to-blue-50 dark:from-gray-900/10 dark:to-blue-900/10">
+          <CardContent className="pt-6">
+            <h3 className="font-semibold mb-3">Other Options</h3>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/subscription/manage">Manage Existing Subscription</Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/#faq">Subscription FAQ</Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/privacy">Privacy Policy</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,494 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Mail, 
+  Settings, 
+  User, 
+  Bell, 
+  Shield, 
+  Trash2, 
+  CheckCircle, 
+  AlertTriangle,
+  Edit3,
+  Eye,
+  EyeOff
+} from 'lucide-react';
+
+interface SubscriptionSettings {
+  email: string;
+  firstName: string;
+  lastName: string;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'important';
+  interests: string[];
+  isActive: boolean;
+  createdAt: string;
+  lastEmail: string;
+}
+
+interface NotificationPreferences {
+  tournaments: boolean;
+  bonuses: boolean;
+  tips: boolean;
+  updates: boolean;
+  security: boolean;
+}
+
+export default function ManageSubscriptionPage(): JSX.Element {
+  const [settings, setSettings] = useState<SubscriptionSettings>({
+    email: '',
+    firstName: '',
+    lastName: '',
+    frequency: 'weekly',
+    interests: [],
+    isActive: true,
+    createdAt: '',
+    lastEmail: ''
+  });
+
+  const [notifications, setNotifications] = useState<NotificationPreferences>({
+    tournaments: true,
+    bonuses: true,
+    tips: false,
+    updates: true,
+    security: true
+  });
+
+  const [state, setState] = useState({
+    isLoading: false,
+    isEditing: false,
+    showEmail: false,
+    message: '',
+    error: ''
+  });
+
+  const [lookupEmail, setLookupEmail] = useState('');
+
+  useEffect(() => {
+    // Load subscription data if user has a token or email in URL params
+    loadSubscriptionData();
+  }, []);
+
+  const loadSubscriptionData = async (): Promise<void> => {
+    // This would typically load from an API with a secure token
+    // For demo purposes, we'll simulate loading user preferences
+    setState(prev => ({ ...prev, isLoading: true }));
+    
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Mock data - in real app, this would come from your backend
+      setSettings({
+        email: 'user@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        frequency: 'weekly',
+        interests: ['tournaments', 'bonuses', 'tips'],
+        isActive: true,
+        createdAt: '2024-01-15T10:30:00Z',
+        lastEmail: '2024-01-22T09:15:00Z'
+      });
+    } catch (error) {
+      setState(prev => ({ ...prev, error: 'Failed to load subscription data' }));
+    } finally {
+      setState(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleLookupSubscription = async (): Promise<void> => {
+    if (!lookupEmail.includes('@')) {
+      setState(prev => ({ ...prev, error: 'Please enter a valid email address' }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, isLoading: true, error: '' }));
+    
+    try {
+      // In a real app, this would make an API call to find the subscription
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Mock finding the subscription
+      if (lookupEmail.toLowerCase().includes('test')) {
+        setState(prev => ({ ...prev, message: 'Subscription found! Loading your preferences...' }));
+        await loadSubscriptionData();
+      } else {
+        setState(prev => ({ ...prev, error: 'No subscription found for this email address' }));
+      }
+    } catch (error) {
+      setState(prev => ({ ...prev, error: 'Error looking up subscription' }));
+    } finally {
+      setState(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleSaveSettings = async (): Promise<void> => {
+    setState(prev => ({ ...prev, isLoading: true, error: '', message: '' }));
+    
+    try {
+      // Simulate saving to API
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setState(prev => ({ 
+        ...prev, 
+        message: 'Settings saved successfully!',
+        isEditing: false
+      }));
+    } catch (error) {
+      setState(prev => ({ ...prev, error: 'Failed to save settings' }));
+    } finally {
+      setState(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleUnsubscribe = async (): Promise<void> => {
+    if (!confirm('Are you sure you want to unsubscribe from all emails? This cannot be undone.')) {
+      return;
+    }
+
+    setState(prev => ({ ...prev, isLoading: true }));
+    
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      window.location.href = '/subscription/unsubscribed';
+    } catch (error) {
+      setState(prev => ({ ...prev, error: 'Failed to unsubscribe' }));
+    }
+  };
+
+  if (!settings.email && !state.isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-50 dark:from-blue-900/20 dark:to-gray-900/20 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mail className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <CardTitle>Manage Your Subscription</CardTitle>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Enter your email address to manage your newsletter preferences
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="lookup-email">Email Address</Label>
+              <Input
+                id="lookup-email"
+                type="email"
+                placeholder="you@example.com"
+                value={lookupEmail}
+                onChange={(e) => setLookupEmail(e.target.value)}
+                disabled={state.isLoading}
+              />
+            </div>
+            
+            {state.error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{state.error}</AlertDescription>
+              </Alert>
+            )}
+
+            {state.message && (
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>{state.message}</AlertDescription>
+              </Alert>
+            )}
+            
+            <Button 
+              onClick={handleLookupSubscription}
+              className="w-full"
+              disabled={state.isLoading}
+            >
+              {state.isLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Looking up...</span>
+                </div>
+              ) : (
+                'Find My Subscription'
+              )}
+            </Button>
+            
+            <div className="text-center pt-4">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Don't have a subscription yet?{' '}
+                <a href="/#subscribe" className="text-blue-600 hover:underline">
+                  Subscribe now
+                </a>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-50 dark:from-blue-900/20 dark:to-gray-900/20 p-4">
+      <div className="w-full max-w-4xl mx-auto space-y-6 py-8">
+        {/* Header */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center space-x-2">
+                  <Settings className="w-5 h-5" />
+                  <span>Subscription Management</span>
+                </CardTitle>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Manage your email preferences and subscription settings
+                </p>
+              </div>
+              <Badge variant={settings.isActive ? "default" : "secondary"}>
+                {settings.isActive ? 'Active' : 'Inactive'}
+              </Badge>
+            </div>
+          </CardHeader>
+        </Card>
+
+        {state.message && (
+          <Alert>
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription>{state.message}</AlertDescription>
+          </Alert>
+        )}
+
+        {state.error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{state.error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Main Content */}
+        <Tabs defaultValue="profile" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="preferences">Preferences</TabsTrigger>
+            <TabsTrigger value="privacy">Privacy</TabsTrigger>
+          </TabsList>
+
+          {/* Profile Tab */}
+          <TabsContent value="profile">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <User className="w-5 h-5" />
+                  <span>Profile Information</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email Address</Label>
+                    <div className="relative">
+                      <Input
+                        id="email"
+                        type={state.showEmail ? "text" : "password"}
+                        value={settings.email}
+                        disabled={!state.isEditing}
+                        onChange={(e) => setSettings(prev => ({ ...prev, email: e.target.value }))}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-auto p-1"
+                        onClick={() => setState(prev => ({ ...prev, showEmail: !prev.showEmail }))}
+                      >
+                        {state.showEmail ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name</Label>
+                    <Input
+                      id="firstName"
+                      value={settings.firstName}
+                      disabled={!state.isEditing}
+                      onChange={(e) => setSettings(prev => ({ ...prev, firstName: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input
+                    id="lastName"
+                    value={settings.lastName}
+                    disabled={!state.isEditing}
+                    onChange={(e) => setSettings(prev => ({ ...prev, lastName: e.target.value }))}
+                  />
+                </div>
+
+                <div className="flex space-x-2">
+                  {!state.isEditing ? (
+                    <Button 
+                      onClick={() => setState(prev => ({ ...prev, isEditing: true }))}
+                      variant="outline"
+                    >
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      Edit Profile
+                    </Button>
+                  ) : (
+                    <>
+                      <Button 
+                        onClick={handleSaveSettings}
+                        disabled={state.isLoading}
+                      >
+                        {state.isLoading ? 'Saving...' : 'Save Changes'}
+                      </Button>
+                      <Button 
+                        onClick={() => setState(prev => ({ ...prev, isEditing: false }))}
+                        variant="outline"
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Preferences Tab */}
+          <TabsContent value="preferences">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Bell className="w-5 h-5" />
+                  <span>Email Preferences</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Email Frequency */}
+                <div className="space-y-3">
+                  <Label>Email Frequency</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {(['daily', 'weekly', 'monthly', 'important'] as const).map((freq) => (
+                      <Button
+                        key={freq}
+                        variant={settings.frequency === freq ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSettings(prev => ({ ...prev, frequency: freq }))}
+                        disabled={!state.isEditing}
+                      >
+                        {freq.charAt(0).toUpperCase() + freq.slice(1)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Notification Types */}
+                <div className="space-y-4">
+                  <Label>Notification Types</Label>
+                  <div className="space-y-3">
+                    {Object.entries({
+                      tournaments: '🏆 Tournament Updates',
+                      bonuses: '🎁 Special Bonuses & Promotions',
+                      tips: '🎱 Pool Tips & Strategies',
+                      updates: '📰 App Updates & News',
+                      security: '🔒 Security & Account Alerts'
+                    }).map(([key, label]) => (
+                      <div key={key} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <div className="font-medium">{label}</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            {key === 'security' ? 'Critical notifications (cannot be disabled)' :
+                             key === 'tournaments' ? 'Tournament schedules and results' :
+                             key === 'bonuses' ? 'Exclusive offers and bonus codes' :
+                             key === 'tips' ? 'Expert pool tips and tutorials' :
+                             'Feature updates and announcements'}
+                          </div>
+                        </div>
+                        <Switch
+                          checked={notifications[key as keyof NotificationPreferences]}
+                          onCheckedChange={(checked) => 
+                            setNotifications(prev => ({ ...prev, [key]: checked }))
+                          }
+                          disabled={key === 'security'}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Button onClick={handleSaveSettings} disabled={state.isLoading}>
+                  {state.isLoading ? 'Saving...' : 'Save Preferences'}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Privacy Tab */}
+          <TabsContent value="privacy">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Shield className="w-5 h-5" />
+                  <span>Privacy & Security</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Subscription Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label>Subscription Created</Label>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {settings.createdAt ? new Date(settings.createdAt).toLocaleDateString() : 'Unknown'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Last Email Sent</Label>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {settings.lastEmail ? new Date(settings.lastEmail).toLocaleDateString() : 'No emails sent'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Data Control */}
+                <div className="space-y-4">
+                  <Label>Data Control</Label>
+                  <div className="space-y-2">
+                    <Button variant="outline" size="sm" className="w-full md:w-auto">
+                      Download My Data
+                    </Button>
+                    <Button variant="outline" size="sm" className="w-full md:w-auto">
+                      Request Data Deletion
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Unsubscribe */}
+                <div className="border border-red-200 dark:border-red-800 rounded-lg p-4 bg-red-50 dark:bg-red-900/20">
+                  <h4 className="font-medium text-red-800 dark:text-red-200 mb-2">Danger Zone</h4>
+                  <p className="text-sm text-red-700 dark:text-red-300 mb-4">
+                    Unsubscribing will remove you from all marketing emails. You can resubscribe anytime.
+                  </p>
+                  <Button 
+                    onClick={handleUnsubscribe}
+                    variant="destructive"
+                    disabled={state.isLoading}
+                    className="flex items-center space-x-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Unsubscribe from All Emails</span>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}
